@@ -1,0 +1,36 @@
+apply plugin: 'com.android.application'
+//apply plugin: 'am.plugin.gradle.compress'
+
+android {
+    compileSdkVersion 29
+    buildToolsVersion "29.0.0"
+    defaultConfig {
+        applicationId "am.project.compressplugin"
+        minSdkVersion 16
+        targetSdkVersion 29
+        versionCode 1
+        versionName "1.0.0"
+    }
+}
+
+//dependencies {
+//    implementation "org.apache.commons:commons-compress:1.18"
+//    implementation "org.tukaani:xz:1.8"
+//}
+
+//task extractCore(type: Extract) {
+//    unSevenZ(file("../pdf_core_all.7z"), file("../temp"))
+//    unSevenZ(file("../temp/pdf_core_interface.7z"), file("../pdfCore"), "+_WS-PdfCore Interface_*")
+//    unSevenZ(file("../temp/armeabi/Release_Clang_Android/pdf_core.7z"), file("../pdfCore/lib/armeabi"))
+//    unSevenZ(file("../temp/armeabi-v7a/Release_Clang_Android/pdf_core.7z"), file("../pdfCore/lib/armeabi-v7a"))
+//    unSevenZ(file("../temp/arm64-v8a/Release_Clang_Android/pdf_core.7z"), file("../pdfCore/lib/arm64-v8a"))
+//    unSevenZ(file("../temp/x86/Release_Clang_Android/pdf_core.7z"), file("../pdfCore/lib/x86"))
+//    unSevenZ(file("../temp/x86_64/Release_Clang_Android/pdf_core.7z"), file("../pdfCore/lib/x86_64"))
+//    unSevenZ(file("../temp/mips/Release_Clang_Android/pdf_core.7z"), file("../pdfCore/lib/mips"))
+//    unSevenZ(file("../temp/mips64/Release_Clang_Android/pdf_core.7z"), file("../pdfCore/lib/mips64"))
+//    doLast {
+//        delete file("../pdfCore/Interface/接口变更.txt")
+//        delete file("../temp")
+////        delete file("../pdf_core_all.7z")
+//    }
+//}
