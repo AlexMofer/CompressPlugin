@@ -41,27 +41,15 @@ class CompressTask extends DefaultTask {
      * 压缩7z文件
      *
      * @param output 输出文件
-     * @param password 密码
-     * @param sources 资源文件
-     */
-    @Input
-    void sevenZ(File output, String password, File... sources) {
-        mParams.add(new SevenZAction(output, password, sources))
-    }
-
-    /**
-     * 压缩7z文件
-     *
-     * @param output 输出文件
      * @param sources 资源文件
      */
     @Input
     void sevenZ(File output, File... sources) {
-        sevenZ(output, null, sources)
+        mParams.add(new SevenZAction(output, sources))
     }
 
     @TaskAction
-    def extract() {
+    def compress() {
         final byte[] buffer = bufferSize > 0 ? new byte[bufferSize] : null
         for (CompressAction action : mParams) {
             try {

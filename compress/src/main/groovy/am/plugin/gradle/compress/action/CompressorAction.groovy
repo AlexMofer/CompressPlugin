@@ -16,39 +16,44 @@
 package am.plugin.gradle.compress.action
 
 import am.plugin.gradle.compress.CommonAction
-import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
-import org.apache.commons.compress.archivers.sevenz.SevenZFile
-import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile
+import org.apache.commons.compress.archivers.ArchiveEntry
+import org.apache.commons.compress.archivers.ArchiveInputStream
+import org.apache.commons.compress.archivers.ArchiveStreamFactory
+import org.apache.commons.compress.compressors.CompressorOutputStream
+import org.apache.commons.compress.compressors.CompressorStreamFactory
 
 /**
- * 7z
+ * Compressor
  */
-class SevenZAction extends CommonAction {
+class CompressorAction extends CommonAction {
 
-    SevenZAction(File source, File output, String password, boolean clear, boolean override) {
+    private final String mName
+
+    CompressorAction(File source, File output, String password, boolean clear, boolean override) {
         super(source, output, password, clear, override)
+        mName = null
     }
 
-    SevenZAction(File output, File... sources) {
+    CompressorAction(String name, File output, File... sources) {
         super(output, null, sources)
+        mName = name
     }
 
     @Override
     void compress(byte[] buffer) throws Exception {
         checkCompress()
-        final SevenZOutputFile output
+        if (mName == null || mName.length() <= 0)
+            throw new IllegalArgumentException("Archive name cannot be empty.")
+        final OutputStream output
         try {
-            output = new SevenZOutputFile(getOutput())
+            output = new FileOutputStream(getOutput())
         } catch (Exception e) {
             throw new IOException("Cannot compress:" + e.getMessage())
         }
+        final CompressorOutputStream compressor
         try {
-            final File[] sources = getSources()
-            for (File source : sources) {
-                final String parent = source.getParent()
-                final String root = parent == null ? null : parent + File.pathSeparator
-                writeFile(source, output, root, buffer)
-            }
+            compressor =
+                    new CompressorStreamFactory().createCompressorOutputStream(mName, output)
         } catch (Exception e) {
             //noinspection GroovyUnusedCatchParameter
             try {
@@ -59,17 +64,44 @@ class SevenZAction extends CommonAction {
             throw new IOException("Cannot compress:" + e.getMessage())
         }
         try {
+            final File[] sources = getSources()
+            for (File source : sources) {
+                writeFile(source, compressor, root, buffer)
+            }
+        } catch (Exception e) {
+            //noinspection GroovyUnusedCatchParameter
+            try {
+                compressor.close()
+            } catch (Exception e1) {
+                // ignore
+            }
+            //noinspection GroovyUnusedCatchParameter
+            try {
+                output.close()
+            } catch (Exception e1) {
+                // ignore
+            }
+            throw new IOException("Cannot compress:" + e.getMessage())
+        }
+        try {
+            compressor.close()
+        } catch (Exception e) {
+            throw new IOException("Cannot compress:" + e.getMessage())
+        }
+        try {
             output.close()
         } catch (Exception e) {
             throw new IOException("Cannot compress:" + e.getMessage())
         }
     }
 
-    private void writeFile(File input, SevenZOutputFile output, String root, byte[] buffer)
+    private void writeFile(File input, CompressorOutputStream output, byte[] buffer)
             throws Exception {
         final String entryName = root == null ?
                 input.getPath() : input.getPath().substring(root.length())
-        final SevenZArchiveEntry entry = output.createArchiveEntry(input, entryName)
+
+
+        final ArchiveEntry entry = output.createArchiveEntry(input, entryName)
         output.putArchiveEntry(entry)
         if (input.isDirectory()) {
             final File[] children = input.listFiles()
@@ -93,28 +125,19 @@ class SevenZAction extends CommonAction {
             }
             stream.close()
         }
-        output.closeArchiveEntry()
+
     }
 
     @Override
     void extract(byte[] buffer) throws Exception {
         checkExtract()
-        SevenZFile archive
-        try {
-            final String password = getPassword()
-            if (password == null)
-            //noinspection GroovyUnusedAssignment
-                archive = new SevenZFile(getSource())
-            else
-            //noinspection GroovyUnusedAssignment
-                archive = new SevenZFile(getSource(), password.toCharArray())
-        } catch (Exception e) {
-            throw new IOException("Cannot extract file:" + e.getMessage())
-        }
+        final BufferedInputStream input = new BufferedInputStream(new FileInputStream(getSource()))
+        final ArchiveInputStream archive =
+                new ArchiveStreamFactory().createArchiveInputStream(input)
         try {
             final File output = getOutput()
             final boolean override = isOverride()
-            SevenZArchiveEntry entry
+            ArchiveEntry entry
             if (buffer == null) {
                 int data
                 while ((entry = archive.getNextEntry()) != null) {
@@ -155,6 +178,7 @@ class SevenZAction extends CommonAction {
         } finally {
             try {
                 archive.close()
+                input.close()
             } catch (Exception e) {
                 throw new IOException("Cannot extract file:" + e.getMessage())
             }

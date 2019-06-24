@@ -13,3 +13,16 @@ dependencies {
 }
 
 //apply from: "bintray.gradle"
+
+apply plugin: 'maven'
+
+group='am.plugin.gradle'
+version='1.0.1'
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            repository(url: uri('../repo'))
+        }
+    }
+}
