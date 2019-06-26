@@ -17,3 +17,6 @@ local.properties
 
 # Key
 *.jks
+
+# Other
+temp/

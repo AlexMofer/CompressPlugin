@@ -29,19 +29,24 @@ class SevenZAction extends CommonAction {
         super(source, output, password, clear, override)
     }
 
-    SevenZAction(File output, File... sources) {
-        super(output, null, sources)
+    SevenZAction(File output, File[] sources) {
+        super(output, sources)
     }
 
     @Override
     void compress(byte[] buffer) throws Exception {
         checkCompress()
-        final SevenZOutputFile output
+        final File dir = getOutput().getParentFile()
+        if (dir != null && !checkDirectory(dir))
+            throw new IOException("Cannot create directory:" + dir.getPath())
+        SevenZOutputFile output
         try {
             output = new SevenZOutputFile(getOutput())
         } catch (Exception e) {
             throw new IOException("Cannot compress:" + e.getMessage())
         }
+        boolean error = false
+        String message = null
         try {
             final File[] sources = getSources()
             for (File source : sources) {
@@ -50,49 +55,36 @@ class SevenZAction extends CommonAction {
                 writeFile(source, output, root, buffer)
             }
         } catch (Exception e) {
-            //noinspection GroovyUnusedCatchParameter
+            throw new IOException("Cannot compress:" + e.getMessage())
+        } finally {
             try {
                 output.close()
-            } catch (Exception e1) {
-                // ignore
+            } catch (Exception e) {
+                error = true
+                message = e.getMessage()
             }
-            throw new IOException("Cannot compress:" + e.getMessage())
         }
-        try {
-            output.close()
-        } catch (Exception e) {
-            throw new IOException("Cannot compress:" + e.getMessage())
-        }
+        if (error)
+            throw new IOException("Cannot compress:" + message)
     }
 
     private void writeFile(File input, SevenZOutputFile output, String root, byte[] buffer)
             throws Exception {
-        final String entryName = root == null ?
-                input.getPath() : input.getPath().substring(root.length())
-        final SevenZArchiveEntry entry = output.createArchiveEntry(input, entryName)
-        output.putArchiveEntry(entry)
         if (input.isDirectory()) {
             final File[] children = input.listFiles()
-            if (children == null || children.length <= 0)
-                return
-            for (File child : children) {
-                writeFile(child, output, root, buffer)
-            }
-        } else {
-            final BufferedInputStream stream = new BufferedInputStream(new FileInputStream(input))
-            if (buffer == null) {
-                int data
-                while ((data = stream.read()) != -1) {
-                    output.write(data)
+            if (children != null && children.length > 0)
+                for (File child : children) {
+                    writeFile(child, output, root, buffer)
                 }
-            } else {
-                int count
-                while ((count = stream.read(buffer)) != -1) {
-                    output.write(buffer, 0, count)
-                }
-            }
-            stream.close()
+            return
         }
+        final String entryName =
+                root == null ? input.getPath() : input.getPath().substring(root.length())
+        final SevenZArchiveEntry entry = output.createArchiveEntry(input, entryName)
+        output.putArchiveEntry(entry)
+        final InputStream stream = new FileInputStream(input)
+        copy(stream, output, buffer)
+        stream.close()
         output.closeArchiveEntry()
     }
 
@@ -102,53 +94,32 @@ class SevenZAction extends CommonAction {
         SevenZFile archive
         try {
             final String password = getPassword()
-            if (password == null)
-            //noinspection GroovyUnusedAssignment
-                archive = new SevenZFile(getSource())
-            else
-            //noinspection GroovyUnusedAssignment
-                archive = new SevenZFile(getSource(), password.toCharArray())
+            archive = password == null ? new SevenZFile(getSource()) :
+                    new SevenZFile(getSource(), password.toCharArray())
         } catch (Exception e) {
             throw new IOException("Cannot extract file:" + e.getMessage())
         }
+        boolean error = false
+        String message = null
         try {
             final File output = getOutput()
             final boolean override = isOverride()
             SevenZArchiveEntry entry
-            if (buffer == null) {
-                int data
-                while ((entry = archive.getNextEntry()) != null) {
-                    final File file = new File(output, entry.getName())
-                    if (file.exists() && !override)
-                        continue
-                    if (entry.isDirectory()) {
-                        file.mkdirs()
-                        continue
-                    }
-                    final BufferedOutputStream stream =
-                            new BufferedOutputStream(new FileOutputStream(file))
-                    while ((data = archive.read()) != -1) {
-                        stream.write(data)
-                    }
-                    stream.close()
+            while ((entry = archive.getNextEntry()) != null) {
+                final File file = new File(output.getPath() + File.separator + entry.getName())
+                if (file.exists() && !override)
+                    continue
+                if (entry.isDirectory()) {
+                    if (!checkDirectory(file))
+                        throw new IOException("Failed to create directory:" + file.getPath())
+                    continue
                 }
-            } else {
-                int count
-                while ((entry = archive.getNextEntry()) != null) {
-                    final File file = new File(output, entry.getName())
-                    if (file.exists() && !override)
-                        continue
-                    if (entry.isDirectory()) {
-                        file.mkdirs()
-                        continue
-                    }
-                    final BufferedOutputStream stream =
-                            new BufferedOutputStream(new FileOutputStream(file))
-                    while ((count = archive.read(buffer)) != -1) {
-                        stream.write(buffer, 0, count)
-                    }
-                    stream.close()
-                }
+                final File parent = file.getParentFile()
+                if (parent != null && !checkDirectory(parent))
+                    throw new IOException("Failed to create directory:" + parent.getPath())
+                final OutputStream stream = new FileOutputStream(file)
+                copy(archive, stream, buffer)
+                stream.close()
             }
         } catch (Exception e) {
             throw new IOException("Cannot extract file:" + e.getMessage())
@@ -156,7 +127,40 @@ class SevenZAction extends CommonAction {
             try {
                 archive.close()
             } catch (Exception e) {
-                throw new IOException("Cannot extract file:" + e.getMessage())
+                error = true
+                message = e.getMessage()
+            }
+        }
+        if (error)
+            throw new IOException("Cannot extract file:" + message)
+    }
+
+    private static void copy(final InputStream input, final SevenZOutputFile output, byte[] buffer)
+            throws Exception {
+        if (buffer == null) {
+            int data
+            while ((data = input.read()) != -1) {
+                output.write(data)
+            }
+        } else {
+            int count
+            while ((count = input.read(buffer)) != -1) {
+                output.write(buffer, 0, count)
+            }
+        }
+    }
+
+    private static void copy(final SevenZFile input, final OutputStream output, byte[] buffer)
+            throws Exception {
+        if (buffer == null) {
+            int data
+            while ((data = input.read()) != -1) {
+                output.write(data)
+            }
+        } else {
+            int count
+            while ((count = input.read(buffer)) != -1) {
+                output.write(buffer, 0, count)
             }
         }
     }

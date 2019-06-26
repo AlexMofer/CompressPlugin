@@ -37,13 +37,31 @@ abstract class CommonAction implements CompressAction, ExtractAction {
         mSources = null
     }
 
-    CommonAction(File output, String password, File... sources) {
+    CommonAction(File output, File[] sources, String password) {
         mSource = null
         mOutput = output
         mPassword = password
         mClear = false
         mOverride = false
         mSources = sources
+    }
+
+    CommonAction(File output, File[] sources) {
+        this(output, sources, null)
+    }
+
+    CommonAction(File output, File source, String password) {
+        mSource = null
+        mOutput = output
+        mPassword = password
+        mClear = false
+        mOverride = false
+        mSources = new File[1]
+        mSources[0] = source
+    }
+
+    CommonAction(File output, File source) {
+        this(output, source, null)
     }
 
     /**
@@ -147,5 +165,22 @@ abstract class CommonAction implements CompressAction, ExtractAction {
             if (!mOutput.mkdirs())
                 throw new IllegalArgumentException("Output directory can not create.")
         }
+    }
+
+    /**
+     * 检查文件夹
+     *
+     * @param dir 文件夹
+     * @return 是否检查通过* @throws Exception 错误
+     */
+    protected static boolean checkDirectory(File dir) throws Exception {
+        if (dir.exists()) {
+            if (!dir.isDirectory() && dir.delete() && !dir.mkdirs())
+                return false
+        } else {
+            if (!dir.mkdirs())
+                return false
+        }
+        return true
     }
 }

@@ -1,0 +1,15 @@
+apply plugin: 'maven'
+
+final Properties properties = new Properties()
+properties.load(file("project.properties").newDataInputStream())
+
+group=properties.getProperty("project.groupId")
+version=properties.getProperty("project.version")
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            repository(url: uri('../repo'))
+        }
+    }
+}

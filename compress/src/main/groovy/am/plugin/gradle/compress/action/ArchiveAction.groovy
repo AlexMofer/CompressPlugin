@@ -16,25 +16,32 @@
 package am.plugin.gradle.compress.action
 
 import am.plugin.gradle.compress.CommonAction
+import am.plugin.gradle.compress.Util
 import org.apache.commons.compress.archivers.ArchiveEntry
 import org.apache.commons.compress.archivers.ArchiveInputStream
 import org.apache.commons.compress.archivers.ArchiveOutputStream
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 
 /**
- * Archive
+ * 归档型
  */
 class ArchiveAction extends CommonAction {
 
+    static final String NAME_AR = ArchiveStreamFactory.AR
+    static final String NAME_ZIP = ArchiveStreamFactory.ZIP
+    static final String NAME_TAR = ArchiveStreamFactory.TAR
+    static final String NAME_JAR = ArchiveStreamFactory.JAR
+    static final String NAME_CPIO = ArchiveStreamFactory.CPIO
+
     private final String mName
 
-    ArchiveAction(File source, File output, String password, boolean clear, boolean override) {
-        super(source, output, password, clear, override)
+    ArchiveAction(File source, File output, boolean clear, boolean override) {
+        super(source, output, null, clear, override)
         mName = null
     }
 
-    ArchiveAction(String name, File output, File... sources) {
-        super(output, null, sources)
+    ArchiveAction(String name, File output, File[] sources) {
+        super(output, sources)
         mName = name
     }
 
@@ -43,25 +50,28 @@ class ArchiveAction extends CommonAction {
         checkCompress()
         if (mName == null || mName.length() <= 0)
             throw new IllegalArgumentException("Archive name cannot be empty.")
-        final OutputStream output
+        final File dir = getOutput().getParentFile()
+        if (dir != null && !checkDirectory(dir))
+            throw new IOException("Cannot create directory:" + dir.getPath())
+        OutputStream output
         try {
             output = new FileOutputStream(getOutput())
         } catch (Exception e) {
             throw new IOException("Cannot compress:" + e.getMessage())
         }
-        final ArchiveOutputStream archive
+        ArchiveOutputStream archive
         try {
             archive =
                     new ArchiveStreamFactory().createArchiveOutputStream(mName, output)
         } catch (Exception e) {
-            //noinspection GroovyUnusedCatchParameter
             try {
                 output.close()
-            } catch (Exception e1) {
-                // ignore
+            } finally {
+                throw new IOException("Cannot compress:" + e.getMessage())
             }
-            throw new IOException("Cannot compress:" + e.getMessage())
         }
+        boolean error = false
+        String message = null
         try {
             final File[] sources = getSources()
             for (File source : sources) {
@@ -69,119 +79,96 @@ class ArchiveAction extends CommonAction {
                 final String root = parent == null ? null : parent + File.pathSeparator
                 writeFile(source, archive, root, buffer)
             }
-            output.flush()
+            archive.finish()
         } catch (Exception e) {
-            //noinspection GroovyUnusedCatchParameter
+            throw new IOException("Cannot compress:" + e.getMessage())
+        } finally {
             try {
                 archive.close()
-            } catch (Exception e1) {
-                // ignore
+            } catch (Exception e) {
+                error = true
+                message = e.getMessage()
             }
-            //noinspection GroovyUnusedCatchParameter
-            try {
-                output.close()
-            } catch (Exception e1) {
-                // ignore
-            }
-            throw new IOException("Cannot compress:" + e.getMessage())
         }
-        try {
-            archive.close()
-        } catch (Exception e) {
-            throw new IOException("Cannot compress:" + e.getMessage())
-        }
-        try {
-            output.close()
-        } catch (Exception e) {
-            throw new IOException("Cannot compress:" + e.getMessage())
-        }
+        if (error)
+            throw new IOException("Cannot compress:" + message)
     }
 
     private void writeFile(File input, ArchiveOutputStream output, String root, byte[] buffer)
             throws Exception {
+        if (input.isDirectory()) {
+            final File[] children = input.listFiles()
+            if (children != null && children.length > 0)
+                for (File child : children) {
+                    writeFile(child, output, root, buffer)
+                }
+            return
+        }
         final String entryName = root == null ?
                 input.getPath() : input.getPath().substring(root.length())
         final ArchiveEntry entry = output.createArchiveEntry(input, entryName)
         output.putArchiveEntry(entry)
-        if (input.isDirectory()) {
-            final File[] children = input.listFiles()
-            if (children == null || children.length <= 0)
-                return
-            for (File child : children) {
-                writeFile(child, output, root, buffer)
-            }
-        } else {
-            final BufferedInputStream stream = new BufferedInputStream(new FileInputStream(input))
-            if (buffer == null) {
-                int data
-                while ((data = stream.read()) != -1) {
-                    output.write(data)
-                }
-            } else {
-                int count
-                while ((count = stream.read(buffer)) != -1) {
-                    output.write(buffer, 0, count)
-                }
-            }
-            stream.close()
-        }
+        final InputStream stream = new FileInputStream(input)
+        Util.copy(stream, output, buffer)
+        stream.close()
         output.closeArchiveEntry()
     }
 
     @Override
     void extract(byte[] buffer) throws Exception {
         checkExtract()
-        final BufferedInputStream input = new BufferedInputStream(new FileInputStream(getSource()))
-        final ArchiveInputStream archive =
-                new ArchiveStreamFactory().createArchiveInputStream(input)
+        InputStream input
+        try {
+            input = new BufferedInputStream(new FileInputStream(getSource()))
+        } catch (Exception e) {
+            throw new IOException("Cannot extract file:" + e.getMessage())
+        }
+        ArchiveInputStream archive
+        try {
+            archive = new ArchiveStreamFactory().createArchiveInputStream(input)
+        } catch (Exception e) {
+            //noinspection GroovyUnusedCatchParameter
+            try {
+                input.close()
+            } finally {
+                throw new IOException("Cannot compress:" + e.getMessage())
+            }
+        }
+        boolean error = false
+        String message = null
         try {
             final File output = getOutput()
             final boolean override = isOverride()
             ArchiveEntry entry
-            if (buffer == null) {
-                int data
-                while ((entry = archive.getNextEntry()) != null) {
-                    final File file = new File(output, entry.getName())
-                    if (file.exists() && !override)
-                        continue
-                    if (entry.isDirectory()) {
-                        file.mkdirs()
-                        continue
-                    }
-                    final BufferedOutputStream stream =
-                            new BufferedOutputStream(new FileOutputStream(file))
-                    while ((data = archive.read()) != -1) {
-                        stream.write(data)
-                    }
-                    stream.close()
+            while ((entry = archive.getNextEntry()) != null) {
+                if (!archive.canReadEntryData(entry))
+                    continue
+                final File file = new File(output.getPath() + File.separator + entry.getName())
+                if (file.exists() && !override)
+                    continue
+                if (entry.isDirectory()) {
+                    if (!checkDirectory(file))
+                        throw new IOException("Failed to create directory:" + file.getPath())
+                    continue
                 }
-            } else {
-                int count
-                while ((entry = archive.getNextEntry()) != null) {
-                    final File file = new File(output, entry.getName())
-                    if (file.exists() && !override)
-                        continue
-                    if (entry.isDirectory()) {
-                        file.mkdirs()
-                        continue
-                    }
-                    final BufferedOutputStream stream =
-                            new BufferedOutputStream(new FileOutputStream(file))
-                    while ((count = archive.read(buffer)) != -1) {
-                        stream.write(buffer, 0, count)
-                    }
-                    stream.close()
-                }
+                final File parent = file.getParentFile()
+                if (parent != null && !checkDirectory(parent))
+                    throw new IOException("Failed to create directory:" + parent.getPath())
+                final OutputStream stream = new FileOutputStream(file)
+                Util.copy(archive, stream, buffer)
+                stream.close()
             }
         } catch (Exception e) {
             throw new IOException("Cannot extract file:" + e.getMessage())
         } finally {
             try {
                 archive.close()
-                input.close()
             } catch (Exception e) {
-                throw new IOException("Cannot extract file:" + e.getMessage())
+                error = true
+                message = e.getMessage()
             }
         }
+        if (error)
+            throw new IOException("Cannot extract file:" + message)
     }
 }

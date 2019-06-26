@@ -1,7 +1,7 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
-    ext.kotlin_version = '1.3.31'
+    ext.kotlin_version = '1.3.40'
     repositories {
         google()
         jcenter()
@@ -12,10 +12,12 @@ buildscript {
     dependencies {
         classpath 'com.android.tools.build:gradle:3.4.1'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-        classpath 'com.github.dcendents:android-maven-gradle-plugin:2.1'
-        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.7.3'
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
+        classpath 'com.github.dcendents:android-maven-gradle-plugin:2.1'
+        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.7.3'
+        classpath 'am.plugin.gradle:compress:1.0.1'
+        classpath 'com.github.luben:zstd-jni:1.4.0-1'
     }
 }
 
@@ -29,4 +31,48 @@ allprojects {
 
 task clean(type: Delete) {
     delete rootProject.buildDir
+}
+
+apply plugin: 'am.plugin.gradle.compress'
+
+task compressTest(type: Compress) {
+    delete file("/temp")
+    def file1 = file("/test/Test1")
+    def file2 = file("/test/Test2")
+    def file3 = file("/test/Test3.txt")
+    bzip2(file("/temp/test-bz2.bz2"), file3)
+    gzip(file("/temp/test-gzip.gz"), file3)
+    xz(file("/temp/test-xz.xz"), file3)
+    lzma(file("/temp/test-lzma.lzma"), file3)
+    deflate(file("/temp/test-deflate.dfl"), file3)
+    snappy(file("/temp/test-snappy.snappy"), file3)
+    lz4Block(file("/temp/test-lz4-block.lz4"), file3)
+    lz4Framed(file("/temp/test-lz4-framed.lz4"), file3)
+    zStandard(file("/temp/test-zstandard.zstd"), file3)
+    ar(file("/temp/test-ar.ar"), file1, file2, file3)
+    zip(file("/temp/test-zip.zip"), file1, file2, file3)
+    tar(file("/temp/test-tar.tar"), file1, file2, file3)
+    jar(file("/temp/test-jar.jar"), file1, file2, file3)
+    cpio(file("/temp/test-cpio.cpio"), file1, file2, file3)
+    sevenZ(file("/temp/test-7z.7z"), file1, file2, file3)
+}
+
+task extractTest(type: Extract) {
+    delete file("/temp")
+    unCompress(file("/test/Archives/Test.bz2"), file("/temp/bz2"), "Test3.txt")
+    unCompress(file("/test/Archives/Test.gz"), file("/temp/gzip"), "Test3.txt")
+    unCompress(file("/test/Archives/Test.xz"), file("/temp/xz"), "Test3.txt")
+    unCompress(file("/test/Archives/Test.lzma"), file("/temp/lzma"), "Test3.txt")
+    unCompress(file("/test/Archives/Test.dfl"), file("/temp/deflate"), "Test3.txt")
+    unCompress(file("/test/Archives/Test.snappy"), file("/temp/snappy"), "Test3.txt")
+    unLz4Block(file("/test/Archives/Test-Block.lz4"), file("/temp/lz4-block"), "Test3.txt")
+    unCompress(file("/test/Archives/Test-Framed.lz4"), file("/temp/lz4-framed"), "Test3.txt")
+    unCompress(file("/test/Archives/Test.zstd"), file("/temp/zstandard"), "Test3.txt")
+    unArchive(file("/test/Archives/Test.ar"), file("/temp/ar"))
+    unArchive(file("/test/Archives/Test.zip"), file("/temp/zip"))
+    unArchive(file("/test/Archives/Test.tar"), file("/temp/tar"))
+    unArchive(file("/test/Archives/Test.jar"), file("/temp/jar"))
+    unArchive(file("/test/Archives/Test.cpio"), file("/temp/cpio"))
+    unSevenZ(file("/test/Archives/Test.7z"), file("/temp/7z"))
+    unSevenZ(file("/test/Archives/Test-Encrypted.7z"), file("/temp/7z-encrypted"), "123")
 }

@@ -15,6 +15,8 @@
  */
 package am.plugin.gradle.compress
 
+import am.plugin.gradle.compress.action.ArchiveAction
+import am.plugin.gradle.compress.action.CompressorAction
 import am.plugin.gradle.compress.action.SevenZAction
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.Input
@@ -36,6 +38,85 @@ class ExtractTask extends DefaultTask {
     @Input
     @Optional
     boolean interruptWhenError = false// 出现错误时终止
+
+    /**
+     * 解压压缩类型的压缩包（lz4-block）
+     *
+     * @param source 资源文件
+     * @param output 输出文件夹
+     * @param name 输出文件名
+     * @param clearOutput 清空输出文件夹
+     * @param override 覆盖已存在的文件
+     */
+    @Input
+    void unLz4Block(File source, File output, String name, boolean clearOutput, boolean override) {
+        mParams.add(new CompressorAction(CompressorAction.NAME_LZ4_BLOCK, source, output, name,
+                clearOutput, override))
+    }
+
+    /**
+     * 解压压缩类型的压缩包（lz4-block）
+     *
+     * @param source 资源文件
+     * @param output 输出文件夹
+     * @param name 输出文件名
+     */
+    @Input
+    void unLz4Block(File source, File output, String name) {
+        unLz4Block(source, output, name, false, false)
+    }
+
+    /**
+     * 解压压缩类型的压缩包（.gz .br .bz2 .xz .lzma .pack .dfl .snappy .z .lz4 .zstd）
+     *
+     * @param source 资源文件
+     * @param output 输出文件夹
+     * @param name 输出文件名
+     * @param clearOutput 清空输出文件夹
+     * @param override 覆盖已存在的文件
+     */
+    @Input
+    void unCompress(File source, File output, String name, boolean clearOutput, boolean override) {
+        mParams.add(new CompressorAction(source, output, name, clearOutput, override))
+    }
+
+    /**
+     * 解压压缩类型的压缩包（.ar .arj .zip .tar .jar .cpio .dump）
+     *
+     * @param source 资源文件
+     * @param output 输出文件夹
+     * @param name 输出文件名
+     */
+    @Input
+    void unCompress(File source, File output, String name) {
+        unCompress(source, output, name, false, false)
+    }
+
+    /**
+     * 解压归档类型的压缩包（.ar .arj .zip .tar .jar .cpio .dump）
+     *
+     * @param source 资源文件
+     * @param output 输出文件夹
+     * @param clearOutput 清空输出文件夹
+     * @param override 覆盖已存在的文件
+     */
+    @Input
+    void unArchive(File source, File output, boolean clearOutput, boolean override) {
+        mParams.add(new ArchiveAction(source, output, clearOutput, override))
+    }
+
+    /**
+     * 解压归档类型的压缩包（.ar .arj .zip .tar .jar .cpio .dump）
+     *
+     * @param source 资源文件
+     * @param output 输出文件夹
+     * @param clearOutput 清空输出文件夹
+     * @param override 覆盖已存在的文件
+     */
+    @Input
+    void unArchive(File source, File output) {
+        unArchive(source, output, false, false)
+    }
 
     /**
      * 解压7z文件

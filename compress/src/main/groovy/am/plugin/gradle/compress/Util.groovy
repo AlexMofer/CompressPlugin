@@ -63,4 +63,27 @@ class Util {
         }
         return true
     }
+
+    /**
+     * 拷贝数据
+     *
+     * @param input 输入
+     * @param output 输出
+     * @param buffer 缓冲
+     * @throws Exception 错误
+     */
+    static void copy(final InputStream input, final OutputStream output, byte[] buffer)
+            throws Exception {
+        if (buffer == null) {
+            int data
+            while ((data = input.read()) != -1) {
+                output.write(data)
+            }
+        } else {
+            int count
+            while ((count = input.read(buffer)) != -1) {
+                output.write(buffer, 0, count)
+            }
+        }
+    }
 }
