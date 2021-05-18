@@ -1,8 +1,6 @@
 Gradle Compress Plugin
 =========
 
-<div align=center><img src="icon.png" alt="Icon"/>
-
 介绍
 ---
 
