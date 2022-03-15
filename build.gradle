@@ -2,9 +2,9 @@
 
 buildscript {
     repositories {
+        gradlePluginPortal()
         google()
         mavenCentral()
-        jcenter()
         maven {
             url uri('/repo')
         }
